@@ -11,8 +11,8 @@ Tutto avviene nel browser: il file non viene inviato a nessun server.
 
 ## Come si usa
 
-1. Apri la pagina (`index.html`). All'inizio c'è un esempio, *Fra Martino*, per provare.
-2. Premi **Apri file** (oppure trascina il file sulla pagina). Vanno bene i file `.musicxml`, `.xml` e `.mxl`.
+1. Apri la pagina (`index.html`): compare la schermata per caricare lo spartito.
+2. Premi **Scegli il file** (oppure trascina il file sulla pagina). Vanno bene i file `.musicxml`, `.xml` e `.mxl`. Per provare c'è la scala di Do maggiore in `esempi/scala-do-maggiore.musicxml`.
 3. **Altezza del pentagramma**: usa il cursore, scrivi il numero oppure scegli una misura pronta (5,5 · 7 · 9 · 12 · 15 · 18 · 20 mm). L'anteprima mostra il risultato su un foglio A4.
 4. **Pennello**: scegli un colore e clicca le note sullo spartito. La gomma toglie il colore. Il cerchio arcobaleno permette di scegliere qualsiasi altro colore.
 5. **Colora per nome della nota**: ogni nota della scala ha il suo colore (all'inizio quelli dell'arcobaleno, ma si possono cambiare). Premi **Colora** su una riga, oppure **Colora tutte le note**.
