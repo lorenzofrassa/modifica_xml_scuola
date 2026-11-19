@@ -27,7 +27,7 @@ Tutto avviene nel browser: il file non viene inviato a nessun server.
 ## Pubblicarla online con GitHub Pages
 
 1. Nel repository su GitHub apri **Settings → Pages**.
-2. In **Build and deployment** scegli **Deploy from a branch**, poi il branch `main` e la cartella `/ (root)`, e premi **Save**.
+2. In **Build and deployment** scegli **Deploy from a branch**, poi il branch con il codice (oggi `pentagramma-a-colori`) e la cartella `/ (root)`, e premi **Save**.
 3. Dopo un paio di minuti la pagina è raggiungibile all'indirizzo `https://lorenzofrassa.github.io/modifica_xml_scuola/`.
 
 ## Dettagli tecnici
