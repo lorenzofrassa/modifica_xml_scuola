@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pentagramma a colori</title>
+<meta name="description" content="Apri un file MusicXML, scegli l'altezza del pentagramma e colora le note.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: barra in alto, colonna strumenti a sinistra, foglio A4 a destra (in colonna su telefono). */
+:root {
+  --bg: #F3F4F7;
+  --surface: #FFFFFF;
+  --fg: #1B1E27;
+  --muted: #5D6373;
+  --line: #DCDFE6;
+  --accent: #3245B5;
+  --accent-soft: #E6E9FA;
+  --accent-fg: #FFFFFF;
+  --danger: #B3261E;
+  --paper: #FFFFFF;
+  --paper-shadow: 0 1px 2px rgba(20, 24, 40, .08), 0 8px 24px rgba(20, 24, 40, .08);
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #13151B; --surface: #1C1F27; --fg: #E7E9EF; --muted: #A0A6B4; --line: #2E323D;
+    --accent: #93A3FF; --accent-soft: #262C4D; --accent-fg: #11142A; --danger: #FF8A80;
+    --paper-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #13151B; --surface: #1C1F27; --fg: #E7E9EF; --muted: #A0A6B4; --line: #2E323D;
+  --accent: #93A3FF; --accent-soft: #262C4D; --accent-fg: #11142A; --danger: #FF8A80;
+  --paper-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.45 var(--font-body);
+  display: flex;
+  flex-direction: column;
+}
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Barra superiore */
+.topbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand svg { flex: none; }
+.brand h1 {
+  margin: 0; font: 700 19px/1.1 var(--font-display); letter-spacing: -.01em; white-space: nowrap;
+}
+.file-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%;
+  padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--fg);
+  font-size: 13px;
+}
+.file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-chip .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.spacer { flex: 1; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.small { min-height: 30px; padding: 0 10px; font-size: 13px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.ghost:hover:not(:disabled) { color: var(--fg); border-color: var(--line); }
+
+/* Area principale */
+.main {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 330px minmax(0, 1fr);
+}
+.tools {
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding-block: 18px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: 16px;
+  display: flex; flex-direction: column; gap: 26px;
+}
+.section { display: flex; flex-direction: column; gap: 12px; }
+.section h2 {
+  margin: 0; font: 600 15px/1.2 var(--font-display); letter-spacing: .01em;
+}
+.hint { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* Altezza del pentagramma */
+.size-row { display: flex; align-items: center; gap: 14px; }
+.size-readout {
+  font: 700 34px/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+}
+.size-readout small { font: 500 15px var(--font-body); color: var(--muted); margin-left: 3px; }
+.staff-glyph { flex: none; color: var(--fg); }
+.size-meta { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.size-inputs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.num {
+  width: 84px; min-height: 32px; padding: 0 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); font-variant-numeric: tabular-nums;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); cursor: pointer; font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+/* Pennello */
+.swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.swatch {
+  aspect-ratio: 1; max-width: 100%; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line);
+  position: relative; padding: 0;
+}
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--fg); }
+.swatch.eraser {
+  background: var(--surface);
+  background-image: linear-gradient(135deg, transparent 46%, var(--danger) 46%, var(--danger) 54%, transparent 54%);
+}
+.swatch.custom { overflow: hidden; }
+.swatch.custom input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  border: 0; padding: 0; cursor: pointer; opacity: 0;
+}
+.swatch.custom:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.brush-now { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.brush-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
+
+/* Colori per nome */
+.names { display: flex; flex-direction: column; gap: 4px; }
+.name-row {
+  display: grid; grid-template-columns: 30px 1fr auto auto; align-items: center; gap: 10px;
+  padding: 4px 4px 4px 2px; border-radius: 8px;
+}
+.name-row:hover { background: var(--bg); }
+.name-row input[type="color"] {
+  width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 50%;
+  background: none; cursor: pointer; overflow: hidden;
+}
+.name-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.name-row input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.name-row input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+.name-row .nm { font-weight: 600; }
+.name-row .cnt { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+.row-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Spartito */
+.score-col { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.score-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding-block: 10px;
+  padding-left: 16px;
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  color: var(--muted); font-size: 13px;
+}
+.zoom { display: inline-flex; align-items: center; gap: 4px; }
+.zoom output { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; color: var(--fg); }
+.score-scroll {
+  flex: 1; min-height: 0; overflow: auto;
+  padding-block: 4px 40px;
+  padding-left: 16px;
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.paper {
+  margin: 0 auto; background: var(--paper); box-shadow: var(--paper-shadow);
+  border-radius: 2px; position: relative; min-height: 300px; color: #000;
+}
+#osmd { cursor: crosshair; }
+#osmd .hl { filter: drop-shadow(0 0 2.5px #3245B5) drop-shadow(0 0 1px #3245B5); }
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center; color: #5D6373; font-size: 14px;
+}
+.tip {
+  position: fixed; z-index: 20; pointer-events: none;
+  padding: 3px 8px; border-radius: 6px; font-size: 12.5px; font-weight: 600;
+  background: var(--fg); color: var(--bg); transform: translate(12px, -130%);
+  white-space: nowrap;
+}
+
+/* Messaggi */
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  z-index: 30; max-width: calc(100% - 32px);
+  padding: 10px 16px; border-radius: 10px; background: var(--fg); color: var(--bg);
+  font-size: 13.5px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.toast.error { background: var(--danger); color: #fff; }
+.drop {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 3px dashed var(--accent);
+  font: 600 20px var(--font-display); color: var(--fg);
+}
+
+@media (max-width: 820px) {
+  body { height: auto; }
+  html { height: auto; }
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .tools {
+    border-right: 0; border-bottom: 1px solid var(--line); overflow: visible;
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .score-scroll { overflow-x: auto; overflow-y: visible; }
+  .score-bar { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .score-scroll { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+      <g stroke="currentColor" stroke-width="1.3" opacity=".55">
+        <line x1="2" y1="7" x2="28" y2="7"/><line x1="2" y1="11" x2="28" y2="11"/><line x1="2" y1="15" x2="28" y2="15"/>
+        <line x1="2" y1="19" x2="28" y2="19"/><line x1="2" y1="23" x2="28" y2="23"/>
+      </g>
+      <ellipse cx="9" cy="19" rx="3.4" ry="2.5" transform="rotate(-20 9 19)" fill="#E53935"/>
+      <ellipse cx="16" cy="15" rx="3.4" ry="2.5" transform="rotate(-20 16 15)" fill="#E8B400"/>
+      <ellipse cx="23" cy="11" rx="3.4" ry="2.5" transform="rotate(-20 23 11)" fill="#1E5BD8"/>
+    </svg>
+    <h1>Pentagramma a colori</h1>
+  </div>
+  <div class="file-chip" id="fileChip" title="File aperto">
+    <span class="tag" id="fileTag">Esempio</span><span id="fileName">Fra Martino</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="actions">
+    <input type="file" id="fileInput" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml" hidden>
+    <button class="btn" id="openBtn" type="button">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5V12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5H3a1 1 0 0 0-1 1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      Apri file
+    </button>
+    <button class="btn" id="undoBtn" type="button" disabled title="Annulla l'ultima modifica (Ctrl+Z)">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3 2.5 6l3 3M3 6h6.5a4 4 0 0 1 0 8H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Annulla
+    </button>
+    <button class="btn primary" id="saveBtn" type="button">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0L4.8 6.8M8 10l3.2-3.2M3 12.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Salva MusicXML
+    </button>
+  </div>
+</header>
+
+<div class="main">
+  <aside class="tools" aria-label="Strumenti">
+
+    <section class="section" aria-labelledby="hSize">
+      <h2 id="hSize">Altezza del pentagramma</h2>
+      <div class="size-row">
+        <svg class="staff-glyph" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+          <g stroke="currentColor" stroke-width="1.2">
+            <line x1="4" y1="6" x2="30" y2="6"/><line x1="4" y1="14" x2="30" y2="14"/><line x1="4" y1="22" x2="30" y2="22"/>
+            <line x1="4" y1="30" x2="30" y2="30"/><line x1="4" y1="38" x2="30" y2="38"/>
+          </g>
+          <g stroke="var(--accent)" stroke-width="1.4" fill="none">
+            <path d="M38 6v32M35 9l3-3 3 3M35 35l3 3 3-3"/>
+          </g>
+        </svg>
+        <div>
+          <div class="size-readout"><span id="sizeOut">7,0</span><small>mm</small></div>
+          <div class="size-meta" id="sizeMeta">dalla prima all'ultima riga</div>
+        </div>
+      </div>
+      <input type="range" id="sizeRange" min="3" max="20" step="0.1" value="7" aria-label="Altezza del pentagramma in millimetri">
+      <div class="size-inputs">
+        <input class="num" type="number" id="sizeNum" min="3" max="20" step="0.1" value="7" aria-label="Altezza in millimetri">
+        <span class="hint">mm</span>
+      </div>
+      <div class="chips" id="sizeChips" role="group" aria-label="Misure pronte">
+        <button class="chip" type="button" data-mm="5.5">Piccolo 5,5</button>
+        <button class="chip" type="button" data-mm="7">Normale 7</button>
+        <button class="chip" type="button" data-mm="9">Grande 9</button>
+        <button class="chip" type="button" data-mm="12">Molto grande 12</button>
+      </div>
+      <p class="hint" id="sizeOrig"></p>
+    </section>
+
+    <section class="section" aria-labelledby="hBrush">
+      <h2 id="hBrush">Pennello</h2>
+      <p class="hint">Scegli un colore, poi clicca una nota sullo spartito per colorarla.</p>
+      <div class="swatches" id="swatches" role="group" aria-label="Colori del pennello"></div>
+      <div class="brush-now"><span class="brush-dot" id="brushDot"></span><span id="brushLabel">Rosso</span></div>
+    </section>
+
+    <section class="section" aria-labelledby="hNames">
+      <h2 id="hNames">Colora per nome della nota</h2>
+      <p class="hint">Dai un colore a ogni nota della scala e applicalo a tutto lo spartito in un colpo.</p>
+      <div class="names" id="names"></div>
+      <label class="check"><input type="checkbox" id="includeAlt" checked> Anche diesis e bemolle (es. Fa♯ come Fa)</label>
+      <div class="row-buttons">
+        <button class="btn primary small" type="button" id="applyAll">Colora tutte le note</button>
+        <button class="btn small" type="button" id="resetNamePalette">Colori arcobaleno</button>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="hClear">
+      <h2 id="hClear">Ripristina</h2>
+      <div class="row-buttons">
+        <button class="btn small" type="button" id="clearAll">Togli tutti i colori</button>
+        <button class="btn small" type="button" id="restoreOrig">Torna al file originale</button>
+      </div>
+    </section>
+  </aside>
+
+  <div class="score-col">
+    <div class="score-bar">
+      <span id="scoreInfo">Anteprima su foglio A4</span>
+      <span class="spacer"></span>
+      <span class="zoom" role="group" aria-label="Zoom dell'anteprima">
+        <button class="btn ghost small" type="button" id="zoomOut" aria-label="Rimpicciolisci anteprima">−</button>
+        <output id="zoomOut2">100%</output>
+        <button class="btn ghost small" type="button" id="zoomIn" aria-label="Ingrandisci anteprima">+</button>
+      </span>
+    </div>
+    <div class="score-scroll" id="scroll">
+      <div class="paper" id="paper">
+        <div id="osmd"></div>
+        <div class="loading" id="loading">Caricamento dello spartito…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="drop" id="drop" hidden>Rilascia qui il file MusicXML</div>
+
+<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@2.2.1/build/opensheetmusicdisplay.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+"use strict";
+
+/* ---------- Costanti ---------- */
+const NAMES = { C: "Do", D: "Re", E: "Mi", F: "Fa", G: "Sol", A: "La", B: "Si" };
+const STEPS = ["C", "D", "E", "F", "G", "A", "B"];
+const RAINBOW = { C: "#E53935", D: "#FB8C00", E: "#E8B400", F: "#43A047", G: "#00ACC1", A: "#1E5BD8", B: "#8E44AD" };
+const BRUSHES = [
+  ["#E53935", "Rosso"], ["#FB8C00", "Arancione"], ["#E8B400", "Giallo"], ["#43A047", "Verde"],
+  ["#00ACC1", "Azzurro"], ["#1E5BD8", "Blu"], ["#8E44AD", "Viola"], ["#EC407A", "Rosa"],
+  ["#795548", "Marrone"], ["#000000", "Nero"]
+];
+const MIN_MM = 3, MAX_MM = 20, DEFAULT_MM = 7;
+const ASSUMED_MM = 7.0556; // misura usata dai programmi quando il file non la indica
+
+/* ---------- Stato ---------- */
+const S = {
+  doc: null,          // documento MusicXML originale (non modificato)
+  fileName: "",
+  notes: [],          // elementi <note> in ordine
+  info: [],           // {step, alter, octave, rest}
+  orig: [],           // colori originali (#RRGGBB o null)
+  colors: [],         // colori attuali
+  hasScaling: false,
+  origMm: null,       // altezza pentagramma originale in mm (se indicata)
+  mm: DEFAULT_MM,
+  undo: [],
+  brush: BRUSHES[0][0],
+  brushName: BRUSHES[0][1],
+  view: 1,            // zoom dell'anteprima
+  nameColors: { ...RAINBOW },
+  includeAlt: true,
+  dirty: false,
+  osmdNotes: [],
+  voiceEntries: []
+};
+
+const $ = (id) => document.getElementById(id);
+const fmtMm = (v) => (Math.round(v * 10) / 10).toFixed(1).replace(".", ",");
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* niente */ } }
+};
+
+/* ---------- Messaggi ---------- */
+let toastTimer;
+function toast(msg, isError) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.toggle("error", !!isError);
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 7000 : 2600);
+}
+
+/* ---------- Utilità XML ---------- */
+function child(el, name) {
+  if (!el) return null;
+  for (const c of el.children) if (c.nodeName === name) return c;
+  return null;
+}
+function children(el, name) {
+  return el ? Array.from(el.children).filter((c) => c.nodeName === name) : [];
+}
+function normColor(c) {
+  if (!c) return null;
+  c = c.trim();
+  if (/^#[0-9a-f]{8}$/i.test(c)) c = "#" + c.slice(3); // MusicXML: #AARRGGBB
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c.toUpperCase();
+  return null;
+}
+function num(v, d) { const n = parseFloat(v); return isFinite(n) ? n : d; }
+function fmtNum(v) { return String(Math.round(v * 10000) / 10000); }
+
+function serialize(doc) {
+  let s = new XMLSerializer().serializeToString(doc);
+  if (!/^\s*<\?xml/.test(s)) s = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + s;
+  return s;
+}
+
+function decodeBytes(buf) {
+  const b = new Uint8Array(buf);
+  if (b[0] === 0xFF && b[1] === 0xFE) return new TextDecoder("utf-16le").decode(b);
+  if (b[0] === 0xFE && b[1] === 0xFF) return new TextDecoder("utf-16be").decode(b);
+  if (b[0] === 0x3C && b[1] === 0x00) return new TextDecoder("utf-16le").decode(b);
+  if (b[0] === 0x00 && b[1] === 0x3C) return new TextDecoder("utf-16be").decode(b);
+  return new TextDecoder("utf-8").decode(b);
+}
+
+/* ---------- Lettura del file ---------- */
+function readNoteInfo(n) {
+  const pitch = child(n, "pitch");
+  if (pitch) {
+    return {
+      step: (child(pitch, "step")?.textContent || "").trim(),
+      alter: num(child(pitch, "alter")?.textContent, 0),
+      octave: num(child(pitch, "octave")?.textContent, 4),
+      rest: false
+    };
+  }
+  return { step: "", alter: 0, octave: 0, rest: !!child(n, "rest") };
+}
+function readNoteColor(n) {
+  return normColor(child(n, "notehead")?.getAttribute("color")) || normColor(n.getAttribute("color"));
+}
+
+function parseScore(text) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) {
+    throw new Error("Il file non è un XML valido. Controlla di aver scelto un file MusicXML.");
+  }
+  const root = doc.documentElement.nodeName;
+  if (root === "score-timewise") {
+    throw new Error("Questo file usa il formato «timewise», che l'anteprima non legge. Esportalo di nuovo come MusicXML normale.");
+  }
+  if (root !== "score-partwise") {
+    throw new Error("Il file non sembra un MusicXML: manca l'elemento <score-partwise>.");
+  }
+  return doc;
+}
+
+function adoptScore(doc, fileName, isSample) {
+  S.doc = doc;
+  S.fileName = fileName;
+  S.notes = Array.from(doc.getElementsByTagName("note"));
+  S.info = S.notes.map(readNoteInfo);
+  S.orig = S.notes.map(readNoteColor);
+  S.colors = S.orig.slice();
+  const scaling = child(child(doc.documentElement, "defaults"), "scaling");
+  const mmEl = child(scaling, "millimeters"), tEl = child(scaling, "tenths");
+  const mm = num(mmEl?.textContent, NaN), tenths = num(tEl?.textContent, NaN);
+  if (isFinite(mm) && isFinite(tenths) && mm > 0 && tenths > 0) {
+    S.hasScaling = true;
+    S.origMm = mm * 40 / tenths;
+  } else {
+    S.hasScaling = false;
+    S.origMm = null;
+  }
+  S.mm = clampMm(S.origMm || ASSUMED_MM);
+  S.undo = [];
+  S.dirty = false;
+  $("fileName").textContent = fileName;
+  $("fileTag").textContent = isSample ? "Esempio" : "File";
+  $("fileChip").title = fileName;
+  $("sizeOrig").textContent = S.origMm
+    ? "Nel file originale: " + fmtMm(S.origMm) + " mm."
+    : "Il file originale non indica un'altezza: i programmi di solito usano circa 7 mm.";
+  updateSizeUi();
+  updateNameCounts();
+  updateUndo();
+}
+
+async function openFile(file) {
+  if (!file) return;
+  const name = file.name || "spartito.musicxml";
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let text;
+    if (bytes[0] === 0x50 && bytes[1] === 0x4B) {
+      text = await readMxl(buf);
+    } else {
+      text = decodeBytes(buf);
+    }
+    const doc = parseScore(text);
+    if (S.dirty && !(await confirmInPage("Le modifiche allo spartito attuale non sono state salvate. Aprire comunque il nuovo file?"))) return;
+    adoptScore(doc, name, false);
+    await renderScore(true);
+    toast("Aperto: " + name);
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "Non riesco ad aprire il file.", true);
+  }
+}
+
+async function readMxl(buf) {
+  if (!window.JSZip) throw new Error("Non riesco a leggere i file .mxl in questo momento: prova con un file .musicxml.");
+  const zip = await JSZip.loadAsync(buf);
+  let path = null;
+  const container = zip.file("META-INF/container.xml");
+  if (container) {
+    const c = new DOMParser().parseFromString(await container.async("string"), "application/xml");
+    const rf = c.getElementsByTagName("rootfile")[0];
+    path = rf && rf.getAttribute("full-path");
+  }
+  if (!path || !zip.file(path)) {
+    path = Object.keys(zip.files).find((p) => !p.startsWith("META-INF") && /\.(musicxml|xml)$/i.test(p));
+  }
+  if (!path) throw new Error("Il file .mxl non contiene uno spartito MusicXML.");
+  return decodeBytes(await zip.file(path).async("arraybuffer"));
+}
+
+/* Piccola conferma dentro la pagina */
+function confirmInPage(msg) {
+  return new Promise((resolve) => {
+    const box = document.createElement("div");
+    box.className = "toast";
+    box.style.display = "flex";
+    box.style.flexWrap = "wrap";
+    box.style.gap = "10px";
+    box.style.alignItems = "center";
+    box.innerHTML = '<span></span><button class="btn small" type="button">Annulla</button><button class="btn small primary" type="button">Apri</button>';
+    box.firstChild.textContent = msg;
+    const [no, yes] = box.querySelectorAll("button");
+    const done = (v) => { box.remove(); resolve(v); };
+    no.onclick = () => done(false);
+    yes.onclick = () => done(true);
+    document.body.appendChild(box);
+    yes.focus();
+  });
+}
+
+/* ---------- Esportazione ---------- */
+function buildExport() {
+  const d = S.doc.cloneNode(true);
+  const notes = d.getElementsByTagName("note");
+  for (let i = 0; i < notes.length; i++) {
+    if (S.colors[i] !== S.orig[i]) writeNoteColor(notes[i], S.colors[i]);
+  }
+  writeScaling(d);
+  return serialize(d);
+}
+
+function writeNoteColor(n, c) {
+  const nh = child(n, "notehead");
+  if (c) {
+    n.setAttribute("color", c);
+    if (nh && nh.hasAttribute("color")) nh.setAttribute("color", c);
+  } else {
+    n.removeAttribute("color");
+    if (nh) nh.removeAttribute("color");
+  }
+}
+
+function writeScaling(d) {
+  if (S.hasScaling && Math.abs(S.mm - S.origMm) < 0.001) return;
+  const root = d.documentElement;
+  let defaults = child(root, "defaults");
+  if (!defaults) {
+    defaults = d.createElement("defaults");
+    root.insertBefore(defaults, child(root, "credit") || child(root, "part-list"));
+  }
+  let scaling = child(defaults, "scaling");
+  if (!scaling) {
+    scaling = d.createElement("scaling");
+    scaling.appendChild(d.createElement("millimeters"));
+    const t = d.createElement("tenths");
+    t.textContent = "40";
+    scaling.appendChild(t);
+    defaults.insertBefore(scaling, defaults.firstChild);
+  }
+  const tenths = num(child(scaling, "tenths")?.textContent, 40);
+  child(scaling, "millimeters").textContent = fmtNum(S.mm * tenths / 40);
+
+  // Se il file aveva già una scala, le misure della pagina (in decimi) vanno ricalcolate
+  // perché il foglio resti della stessa grandezza e i titoli restino al loro posto.
+  if (!S.hasScaling) return;
+  const ratio = S.origMm / S.mm;
+  const scaleText = (el) => { if (el) el.textContent = fmtNum(num(el.textContent, 0) * ratio); };
+  for (const pl of d.getElementsByTagName("page-layout")) {
+    scaleText(child(pl, "page-height"));
+    scaleText(child(pl, "page-width"));
+    for (const pm of children(pl, "page-margins")) {
+      for (const k of ["left-margin", "right-margin", "top-margin", "bottom-margin"]) scaleText(child(pm, k));
+    }
+  }
+  for (const sl of d.getElementsByTagName("system-layout")) {
+    scaleText(child(sl, "top-system-distance"));
+    const sm = child(sl, "system-margins");
+    if (sm) { scaleText(child(sm, "left-margin")); scaleText(child(sm, "right-margin")); }
+  }
+  for (const cr of d.getElementsByTagName("credit")) {
+    for (const el of cr.children) {
+      for (const a of ["default-x", "default-y"]) {
+        if (el.hasAttribute(a)) el.setAttribute(a, fmtNum(num(el.getAttribute(a), 0) * ratio));
+      }
+    }
+  }
+}
+
+function saveFile() {
+  if (!S.doc) return;
+  let xml;
+  try { xml = buildExport(); } catch (err) { console.error(err); toast("Non riesco a preparare il file da salvare.", true); return; }
+  const base = S.fileName.replace(/\.(musicxml|xml|mxl)$/i, "") || "spartito";
+  const name = base + "-colorato.musicxml";
+  const blob = new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  S.dirty = false;
+  toast("Salvato: " + name);
+}
+
+/* ---------- Anteprima (OpenSheetMusicDisplay) ---------- */
+let osmd = null;
+function ensureOsmd() {
+  if (osmd) return osmd;
+  if (!window.opensheetmusicdisplay) throw new Error("La libreria per disegnare lo spartito non si è caricata. Controlla la connessione a internet e ricarica la pagina.");
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay($("osmd"), {
+    autoResize: false,
+    backend: "svg",
+    drawTitle: true,
+    drawComposer: true,
+    drawPartNames: true,
+    coloringEnabled: true,
+    pageFormat: "Endless",
+    drawingParameters: "default"
+  });
+  return osmd;
+}
+
+function pxPerMm() {
+  const avail = Math.max(260, $("scroll").clientWidth - 32);
+  return Math.min(avail / 210, 4.2) * S.view;
+}
+
+let rendering = false, renderAgain = false;
+async function renderScore(reload) {
+  const o = ensureOsmd();
+  if (reload) {
+    $("loading").hidden = false;
+    // Copia per l'anteprima: ogni nota riceve un "colore" segnaposto con il suo numero,
+    // così dopo la lettura sappiamo a quale <note> del file corrisponde ogni nota disegnata.
+    const clone = S.doc.cloneNode(true);
+    const notes = clone.getElementsByTagName("note");
+    for (let i = 0; i < notes.length; i++) {
+      notes[i].setAttribute("color", "xi" + i);
+      child(notes[i], "notehead")?.removeAttribute("color");
+      child(notes[i], "stem")?.removeAttribute("color");
+    }
+    await o.load(serialize(clone));
+    mapNotes();
+  }
+  if (rendering) { renderAgain = true; return; }
+  rendering = true;
+  try {
+    do {
+      renderAgain = false;
+      draw();
+    } while (renderAgain);
+  } finally {
+    rendering = false;
+    $("loading").hidden = true;
+  }
+}
+
+function mapNotes() {
+  S.osmdNotes = [];
+  S.voiceEntries = [];
+  const seenVe = new Set();
+  for (const m of osmd.Sheet.SourceMeasures) {
+    for (const c of m.VerticalSourceStaffEntryContainers) {
+      for (const se of c.StaffEntries) {
+        if (!se) continue;
+        for (const ve of se.VoiceEntries) {
+          if (!seenVe.has(ve)) { seenVe.add(ve); S.voiceEntries.push(ve); }
+          for (const n of ve.Notes) {
+            const m2 = /^xi(\d+)$/.exec(n.NoteheadColorXml || "");
+            n.__xi = m2 ? parseInt(m2[1], 10) : null;
+            S.osmdNotes.push(n);
+          }
+        }
+      }
+    }
+  }
+}
+
+function applyColorsToOsmd() {
+  for (const n of S.osmdNotes) {
+    const c = n.__xi != null ? (S.colors[n.__xi] || undefined) : undefined;
+    n.NoteheadColor = c;
+    n.NoteheadColorXml = c;
+  }
+  for (const ve of S.voiceEntries) {
+    const cs = ve.Notes.map((n) => (n.__xi != null ? S.colors[n.__xi] : null));
+    const same = cs.length && cs.every((c) => c === cs[0]) ? cs[0] : null;
+    ve.StemColor = same || undefined;
+    ve.StemColorXml = same || undefined;
+  }
+}
+
+function draw() {
+  const o = osmd;
+  const ppm = pxPerMm();
+  const paper = $("paper");
+  paper.style.width = Math.round(210 * ppm) + "px";
+  // OSMD: 1 unità = 10 px a zoom 1, il pentagramma è alto 4 unità (40 px).
+  o.Zoom = (S.mm * ppm) / 40;
+  const rules = o.EngravingRules;
+  rules.PageLeftMargin = rules.PageRightMargin = 60 / S.mm;  // circa 15 mm
+  rules.PageTopMargin = 40 / S.mm;                           // circa 10 mm
+  rules.PageBottomMargin = 40 / S.mm;
+  applyColorsToOsmd();
+  const sc = $("scroll"), keepTop = sc.scrollTop;
+  o.render();
+  sc.scrollTop = keepTop;
+  clearHover();
+  const colored = S.colors.filter(Boolean).length;
+  $("scoreInfo").textContent = "Anteprima su foglio A4 · " + S.notes.length + " note, " + colored + " colorate";
+}
+
+/* ---------- Altezza del pentagramma ---------- */
+function clampMm(v) { return Math.min(MAX_MM, Math.max(MIN_MM, Math.round(v * 100) / 100)); }
+function updateSizeUi() {
+  $("sizeOut").textContent = fmtMm(S.mm);
+  $("sizeMeta").textContent = "spazio tra due righe: " + (S.mm / 4).toFixed(2).replace(".", ",") + " mm";
+  $("sizeRange").value = S.mm;
+  if (document.activeElement !== $("sizeNum")) $("sizeNum").value = Math.round(S.mm * 10) / 10;
+  for (const b of $("sizeChips").children) {
+    b.setAttribute("aria-pressed", String(Math.abs(parseFloat(b.dataset.mm) - S.mm) < 0.05));
+  }
+}
+let sizeTimer, sizeUndoPushed = false;
+function setMm(v, immediate) {
+  v = clampMm(v);
+  if (!isFinite(v) || Math.abs(v - S.mm) < 0.001) return;
+  if (!sizeUndoPushed) { pushUndo(); sizeUndoPushed = true; }
+  S.mm = v;
+  S.dirty = true;
+  updateSizeUi();
+  clearTimeout(sizeTimer);
+  sizeTimer = setTimeout(() => { sizeUndoPushed = false; renderScore(false); }, immediate ? 0 : 140);
+}
+
+/* ---------- Annulla ---------- */
+function pushUndo() {
+  S.undo.push({ colors: S.colors.slice(), mm: S.mm });
+  if (S.undo.length > 200) S.undo.shift();
+  updateUndo();
+}
+function undo() {
+  const st = S.undo.pop();
+  if (!st) return;
+  S.colors = st.colors;
+  S.mm = st.mm;
+  S.dirty = true;
+  updateSizeUi();
+  updateUndo();
+  renderScore(false);
+}
+function updateUndo() { $("undoBtn").disabled = S.undo.length === 0; }
+
+/* ---------- Colori ---------- */
+function setColors(indexes, color) {
+  const changed = indexes.filter((i) => (S.colors[i] || null) !== (color || null));
+  if (!changed.length) return 0;
+  pushUndo();
+  for (const i of changed) S.colors[i] = color || null;
+  S.dirty = true;
+  renderScore(false);
+  return changed.length;
+}
+
+function noteLabel(i) {
+  const inf = S.info[i];
+  if (!inf) return "";
+  if (inf.rest) return "Pausa";
+  if (!NAMES[inf.step]) return "Nota";
+  const acc = inf.alter > 0 ? "♯".repeat(Math.round(inf.alter)) : inf.alter < 0 ? "♭".repeat(Math.round(-inf.alter)) : "";
+  return NAMES[inf.step] + acc;
+}
+
+function indexesForStep(step) {
+  const out = [];
+  S.info.forEach((inf, i) => {
+    if (inf.rest || inf.step !== step) return;
+    if (!S.includeAlt && inf.alter !== 0) return;
+    out.push(i);
+  });
+  return out;
+}
+
+function buildSwatches() {
+  const wrap = $("swatches");
+  for (const [hex, name] of BRUSHES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch";
+    b.style.background = hex;
+    b.title = name;
+    b.setAttribute("aria-label", name);
+    b.dataset.color = hex;
+    b.onclick = () => setBrush(hex, name);
+    wrap.appendChild(b);
+  }
+  const custom = document.createElement("label");
+  custom.className = "swatch custom";
+  custom.title = "Altro colore";
+  custom.style.background = "conic-gradient(#E53935, #E8B400, #43A047, #00ACC1, #1E5BD8, #8E44AD, #E53935)";
+  const inp = document.createElement("input");
+  inp.type = "color";
+  inp.id = "customColor";
+  inp.value = "#FF6F00";
+  inp.setAttribute("aria-label", "Scegli un altro colore");
+  inp.addEventListener("input", () => setBrush(inp.value.toUpperCase(), "Colore personalizzato " + inp.value.toUpperCase(), custom));
+  custom.appendChild(inp);
+  wrap.appendChild(custom);
+  const er = document.createElement("button");
+  er.type = "button";
+  er.className = "swatch eraser";
+  er.title = "Gomma: togli il colore";
+  er.setAttribute("aria-label", "Gomma: togli il colore");
+  er.dataset.color = "";
+  er.onclick = () => setBrush(null, "Gomma (toglie il colore)");
+  wrap.appendChild(er);
+  setBrush(BRUSHES[0][0], BRUSHES[0][1]);
+}
+
+function setBrush(color, name, el) {
+  S.brush = color;
+  S.brushName = name;
+  for (const b of $("swatches").children) {
+    const pressed = el ? b === el : (b.dataset.color !== undefined && (b.dataset.color || null) === (color || null));
+    b.setAttribute("aria-pressed", String(pressed));
+  }
+  $("brushDot").style.background = color || "transparent";
+  $("brushLabel").textContent = name;
+}
+
+function buildNameRows() {
+  const wrap = $("names");
+  wrap.innerHTML = "";
+  for (const step of STEPS) {
+    const row = document.createElement("div");
+    row.className = "name-row";
+    const inp = document.createElement("input");
+    inp.type = "color";
+    inp.id = "nc-" + step;
+    inp.value = S.nameColors[step];
+    inp.setAttribute("aria-label", "Colore per " + NAMES[step]);
+    inp.addEventListener("input", () => { S.nameColors[step] = inp.value.toUpperCase(); store.set("pc-name-colors", S.nameColors); });
+    const nm = document.createElement("span");
+    nm.className = "nm";
+    nm.textContent = NAMES[step];
+    const cnt = document.createElement("span");
+    cnt.className = "cnt";
+    cnt.id = "cnt-" + step;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn small";
+    b.textContent = "Colora";
+    b.setAttribute("aria-label", "Colora tutti i " + NAMES[step]);
+    b.onclick = () => {
+      const n = setColors(indexesForStep(step), S.nameColors[step]);
+      toast(n ? "Colorate " + n + " note " + NAMES[step] : "Le note " + NAMES[step] + " hanno già questo colore");
+    };
+    row.append(inp, nm, cnt, b);
+    wrap.appendChild(row);
+  }
+}
+
+function updateNameCounts() {
+  for (const step of STEPS) {
+    const n = indexesForStep(step).length;
+    const el = $("cnt-" + step);
+    if (el) el.textContent = n === 1 ? "1 nota" : n + " note";
+  }
+}
+
+/* ---------- Clic e passaggio del mouse sulle note ---------- */
+function hitTest(e) {
+  if (!osmd || !osmd.GraphicSheet) return null;
+  const P = opensheetmusicdisplay.PointF2D;
+  const gs = osmd.GraphicSheet;
+  let p;
+  try { p = gs.svgToOsmd(gs.domToSvg(new P(e.clientX, e.clientY))); } catch (err) { return null; }
+  let gn;
+  try { gn = gs.GetNearestNote(p, new P(3, 3)); } catch (err) { return null; }
+  if (!gn || !gn.sourceNote) return null;
+  const a = gn.PositionAndShape.AbsolutePosition;
+  if (Math.abs(a.x - p.x) > 2.2 || Math.abs(a.y - p.y) > 3) return null;
+  const xi = gn.sourceNote.__xi;
+  return xi == null ? null : { gn, xi };
+}
+
+let hoverEl = null;
+function clearHover() {
+  if (hoverEl) hoverEl.classList.remove("hl");
+  hoverEl = null;
+  $("tip").hidden = true;
+}
+let moveFrame = 0;
+$("osmd").addEventListener("pointermove", (e) => {
+  if (e.pointerType === "touch") return;
+  cancelAnimationFrame(moveFrame);
+  moveFrame = requestAnimationFrame(() => {
+    const hit = hitTest(e);
+    if (!hit) { clearHover(); return; }
+    let g = null;
+    try { g = hit.gn.getSVGGElement && hit.gn.getSVGGElement(); } catch (err) { g = null; }
+    if (g !== hoverEl) { if (hoverEl) hoverEl.classList.remove("hl"); hoverEl = g; if (g) g.classList.add("hl"); }
+    const tip = $("tip");
+    tip.textContent = noteLabel(hit.xi);
+    tip.style.left = e.clientX + "px";
+    tip.style.top = e.clientY + "px";
+    tip.hidden = false;
+  });
+});
+$("osmd").addEventListener("pointerleave", clearHover);
+$("osmd").addEventListener("click", (e) => {
+  const hit = hitTest(e);
+  if (!hit) return;
+  if (!setColors([hit.xi], S.brush)) return;
+});
+
+/* ---------- Esempio iniziale ---------- */
+function sampleXml() {
+  const A = [["C4", 2], ["D4", 2], ["E4", 2], ["C4", 2]];
+  const B = [["E4", 2], ["F4", 2], ["G4", 4]];
+  const C = [["G4", 1], ["A4", 1], ["G4", 1], ["F4", 1], ["E4", 2], ["C4", 2]];
+  const D = [["C4", 2], ["G3", 2], ["C4", 4]];
+  const melody = [A, A, B, B, C, C, D, D];
+  const type = { 1: "eighth", 2: "quarter", 4: "half" };
+  const lyrics = [
+    ["Fra", "Mar", "ti", "no"], ["cam", "pa", "na", "ro"], ["dor", "mi", "tu?"], ["dor", "mi", "tu?"],
+    ["suo", "na", "le", "cam", "pa", "ne"], ["suo", "na", "le", "cam", "pa", "ne"], ["din", "don", "dan"], ["din", "don", "dan"]
+  ];
+  let measures = "";
+  melody.forEach((notes, mi) => {
+    let x = '<measure number="' + (mi + 1) + '">';
+    if (mi === 0) {
+      x += "<attributes><divisions>2</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>";
+    }
+    let eighthIdx = 0;
+    notes.forEach(([p, dur], ni) => {
+      const step = p[0], oct = p.slice(1);
+      x += '<note color="' + RAINBOW[step] + '"><pitch><step>' + step + "</step><octave>" + oct + "</octave></pitch>";
+      x += "<duration>" + dur + "</duration><voice>1</voice><type>" + type[dur] + "</type>";
+      if (dur === 1) { x += '<beam number="1">' + (eighthIdx % 2 === 0 ? "begin" : "end") + "</beam>"; eighthIdx++; }
+      const syl = lyrics[mi][ni];
+      if (syl) x += '<lyric number="1"><syllabic>single</syllabic><text>' + syl + "</text></lyric>";
+      x += "</note>";
+    });
+    if (mi === melody.length - 1) x += '<barline location="right"><bar-style>light-heavy</bar-style></barline>';
+    measures += x + "</measure>";
+  });
+  return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' +
+    '<score-partwise version="4.0">' +
+    "<work><work-title>Fra Martino</work-title></work>" +
+    '<identification><creator type="composer">Tradizionale</creator></identification>' +
+    "<defaults><scaling><millimeters>7.0556</millimeters><tenths>40</tenths></scaling>" +
+    "<page-layout><page-height>1683.36</page-height><page-width>1190.88</page-width>" +
+    '<page-margins type="both"><left-margin>85.04</left-margin><right-margin>85.04</right-margin><top-margin>85.04</top-margin><bottom-margin>85.04</bottom-margin></page-margins></page-layout></defaults>' +
+    '<part-list><score-part id="P1"><part-name>Voce</part-name></score-part></part-list>' +
+    '<part id="P1">' + measures + "</part></score-partwise>";
+}
+
+/* ---------- Eventi ---------- */
+$("openBtn").onclick = () => $("fileInput").click();
+$("fileInput").addEventListener("change", (e) => { openFile(e.target.files[0]); e.target.value = ""; });
+$("saveBtn").onclick = saveFile;
+$("undoBtn").onclick = undo;
+
+$("sizeRange").addEventListener("input", (e) => setMm(parseFloat(e.target.value)));
+$("sizeRange").addEventListener("change", () => { sizeUndoPushed = false; });
+$("sizeNum").addEventListener("change", (e) => {
+  const v = parseFloat(String(e.target.value).replace(",", "."));
+  if (!isFinite(v)) { updateSizeUi(); return; }
+  sizeUndoPushed = false;
+  setMm(v, true);
+  sizeUndoPushed = false;
+  e.target.value = Math.round(S.mm * 10) / 10;
+});
+$("sizeChips").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-mm]");
+  if (!b) return;
+  sizeUndoPushed = false;
+  setMm(parseFloat(b.dataset.mm), true);
+  sizeUndoPushed = false;
+});
+
+$("includeAlt").addEventListener("change", (e) => { S.includeAlt = e.target.checked; updateNameCounts(); });
+$("applyAll").onclick = () => {
+  const all = [];
+  const colorFor = {};
+  for (const step of STEPS) for (const i of indexesForStep(step)) { all.push(i); colorFor[i] = S.nameColors[step]; }
+  const changed = all.filter((i) => S.colors[i] !== colorFor[i]);
+  if (!changed.length) { toast("Tutte le note hanno già i colori scelti"); return; }
+  pushUndo();
+  for (const i of changed) S.colors[i] = colorFor[i];
+  S.dirty = true;
+  renderScore(false);
+  toast("Colorate " + changed.length + " note");
+};
+$("resetNamePalette").onclick = () => {
+  S.nameColors = { ...RAINBOW };
+  store.set("pc-name-colors", S.nameColors);
+  for (const step of STEPS) $("nc-" + step).value = RAINBOW[step];
+  toast("Ripristinati i colori arcobaleno");
+};
+$("clearAll").onclick = () => {
+  const idx = S.colors.map((c, i) => (c ? i : -1)).filter((i) => i >= 0);
+  if (!idx.length) { toast("Non ci sono note colorate"); return; }
+  setColors(idx, null);
+  toast("Colori tolti da " + idx.length + " note");
+};
+$("restoreOrig").onclick = () => {
+  const same = S.colors.every((c, i) => c === S.orig[i]) && Math.abs(S.mm - clampMm(S.origMm || ASSUMED_MM)) < 0.001;
+  if (same) { toast("Lo spartito è già come nel file originale"); return; }
+  pushUndo();
+  S.colors = S.orig.slice();
+  S.mm = clampMm(S.origMm || ASSUMED_MM);
+  S.dirty = false;
+  updateSizeUi();
+  renderScore(false);
+  toast("Spartito riportato al file originale");
+};
+
+$("zoomIn").onclick = () => setView(S.view * 1.2);
+$("zoomOut").onclick = () => setView(S.view / 1.2);
+function setView(v) {
+  S.view = Math.min(3, Math.max(0.5, v));
+  $("zoomOut2").textContent = Math.round(S.view * 100) + "%";
+  store.set("pc-view", S.view);
+  if (S.doc) renderScore(false);
+}
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+    if (e.target.matches && e.target.matches("input[type=number]")) return;
+    e.preventDefault();
+    undo();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveFile(); }
+  if (e.key === "Escape") clearHover();
+});
+
+let dragDepth = 0;
+window.addEventListener("dragenter", (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files")) { dragDepth++; $("drop").hidden = false; e.preventDefault(); } });
+window.addEventListener("dragover", (e) => { if (!$("drop").hidden) e.preventDefault(); });
+window.addEventListener("dragleave", () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $("drop").hidden = true; });
+window.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  $("drop").hidden = true;
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if (f) openFile(f);
+});
+
+window.addEventListener("beforeunload", (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+let resizeTimer, lastWidth = 0;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const w = $("scroll").clientWidth;
+    if (S.doc && Math.abs(w - lastWidth) > 4) { lastWidth = w; renderScore(false); }
+  }, 200);
+});
+
+/* ---------- Avvio ---------- */
+(async function start() {
+  const savedNames = store.get("pc-name-colors");
+  if (savedNames && typeof savedNames === "object") {
+    for (const s of STEPS) if (/^#[0-9A-F]{6}$/i.test(savedNames[s] || "")) S.nameColors[s] = savedNames[s].toUpperCase();
+  }
+  const savedView = store.get("pc-view");
+  if (typeof savedView === "number" && isFinite(savedView)) { S.view = Math.min(3, Math.max(0.5, savedView)); }
+  $("zoomOut2").textContent = Math.round(S.view * 100) + "%";
+  buildSwatches();
+  buildNameRows();
+  try {
+    adoptScore(parseScore(sampleXml()), "Fra Martino", true);
+    lastWidth = $("scroll").clientWidth;
+    await renderScore(true);
+  } catch (err) {
+    console.error(err);
+    $("loading").textContent = err.message || "Non riesco a disegnare lo spartito.";
+  }
+})();
+</script>
+</body>
+</html>
