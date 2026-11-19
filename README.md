@@ -4,7 +4,8 @@ Una pagina web per modificare uno spartito MusicXML senza installare programmi:
 
 - **altezza del pentagramma**: si sceglie in millimetri (dalla prima all'ultima riga), da 3 a 20 mm;
 - **note colorate**: si colorano una per una con un clic, oppure tutte quelle con lo stesso nome (tutti i Do, tutti i Re…);
-- **salvataggio**: il risultato si scarica come file `.musicxml`, da aprire con MuseScore, Finale, Sibelius, Dorico e altri.
+- **salvataggio**: il risultato si scarica come file `.musicxml`, da aprire con MuseScore, Finale, Sibelius, Dorico e altri;
+- **PDF**: lo spartito colorato si scarica anche come PDF su fogli A4, pronto da stampare, con il pentagramma all'altezza scelta.
 
 Tutto avviene nel browser: il file non viene inviato a nessun server.
 
@@ -17,6 +18,7 @@ Tutto avviene nel browser: il file non viene inviato a nessun server.
 5. **Colora per nome della nota**: ogni nota della scala ha il suo colore (all'inizio quelli dell'arcobaleno, ma si possono cambiare). Premi **Colora** su una riga, oppure **Colora tutte le note**.
 6. **Annulla** (o Ctrl+Z) torna indietro di un passo. **Torna al file originale** ripristina tutto.
 7. Premi **Salva MusicXML**: viene scaricato un file con il nome originale seguito da `-colorato.musicxml`.
+8. Premi **Scarica PDF** per avere lo spartito impaginato su fogli A4 (`-colorato.pdf`). Il PDF è vettoriale, quindi resta nitido anche in stampa, e il pentagramma ha esattamente l'altezza scelta.
 
 ## Cosa cambia nel file
 
@@ -33,5 +35,5 @@ Tutto avviene nel browser: il file non viene inviato a nessun server.
 ## Dettagli tecnici
 
 - Un solo file, `index.html`, senza passaggi di compilazione.
-- Lo spartito viene disegnato con [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org/) 2.2.1; i file `.mxl` vengono aperti con [JSZip](https://stuk.github.io/jszip/) 3.10.1. Entrambe le librerie si caricano da CDN, quindi serve una connessione a internet.
+- Lo spartito viene disegnato con [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org/) 2.2.1; i file `.mxl` vengono aperti con [JSZip](https://stuk.github.io/jszip/) 3.10.1; il PDF viene creato con [jsPDF](https://github.com/parallax/jsPDF) 3.0.3 e [svg2pdf.js](https://github.com/yWorks/svg2pdf.js) 2.8.1, caricate solo quando si preme il pulsante. Tutte le librerie si caricano da CDN, quindi serve una connessione a internet.
 - L'anteprima è indicativa: ogni programma di notazione impagina lo spartito a modo suo.

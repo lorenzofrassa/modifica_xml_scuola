@@ -269,6 +269,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3 2.5 6l3 3M3 6h6.5a4 4 0 0 1 0 8H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Annulla
     </button>
+    <button class="btn" id="pdfBtn" type="button" title="Scarica lo spartito impaginato su fogli A4">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.75h5.5L13 5.25v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1Z M9.25 1.75v3.75H13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5.5 9.5h5M5.5 11.75h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span id="pdfLabel">Scarica PDF</span>
+    </button>
     <button class="btn primary" id="saveBtn" type="button">
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0L4.8 6.8M8 10l3.2-3.2M3 12.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Salva MusicXML
@@ -395,6 +399,7 @@ const S = {
   nameColors: { ...RAINBOW },
   includeAlt: true,
   dirty: false,
+  renderXml: null,    // copia usata per disegnare (con i segnaposto delle note)
   osmdNotes: [],
   voiceEntries: []
 };
@@ -646,9 +651,13 @@ function saveFile() {
   if (!S.doc) return;
   let xml;
   try { xml = buildExport(); } catch (err) { console.error(err); toast("Non riesco a preparare il file da salvare.", true); return; }
-  const base = S.fileName.replace(/\.(musicxml|xml|mxl)$/i, "") || "spartito";
-  const name = base + "-colorato.musicxml";
-  const blob = new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" });
+  const name = baseName() + "-colorato.musicxml";
+  downloadBlob(new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" }), name);
+  S.dirty = false;
+  toast("Salvato: " + name);
+}
+
+function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -657,8 +666,72 @@ function saveFile() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  S.dirty = false;
-  toast("Salvato: " + name);
+}
+
+function baseName() {
+  return S.fileName.replace(/\.(musicxml|xml|mxl)$/i, "") || "spartito";
+}
+
+/* ---------- PDF ---------- */
+const PDF_LIBS = [
+  "https://cdn.jsdelivr.net/npm/jspdf@3.0.3/dist/jspdf.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/svg2pdf.js@2.8.1/dist/svg2pdf.umd.min.js"
+];
+const loadedScripts = {};
+function loadScript(src) {
+  if (!loadedScripts[src]) {
+    loadedScripts[src] = new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = src;
+      el.onload = resolve;
+      el.onerror = () => { delete loadedScripts[src]; reject(new Error("Non riesco a scaricare gli strumenti per il PDF. Controlla la connessione e riprova.")); };
+      document.head.appendChild(el);
+    });
+  }
+  return loadedScripts[src];
+}
+
+let pdfBusy = false;
+async function exportPdf() {
+  if (!S.doc || !S.renderXml || pdfBusy) return;
+  pdfBusy = true;
+  $("pdfBtn").disabled = true;
+  $("pdfLabel").textContent = "Preparo il PDF…";
+  const PPM = 4; // pixel per millimetro nella pagina di lavoro (il PDF è vettoriale)
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText = "position:absolute;left:-30000px;top:0;width:" + (210 * PPM) + "px;background:#fff;";
+  document.body.appendChild(host);
+  try {
+    for (const src of PDF_LIBS) await loadScript(src);
+    const o = new opensheetmusicdisplay.OpenSheetMusicDisplay(host, osmdOptions("A4_P"));
+    await o.load(S.renderXml);
+    const m = mapNotes(o);
+    applyColors(m.notes, m.ves);
+    o.Zoom = (S.mm * PPM) / 40;
+    setMargins(o.EngravingRules);
+    o.render();
+    const svgs = host.querySelectorAll("svg");
+    if (!svgs.length) throw new Error("Non riesco a impaginare lo spartito.");
+    const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    for (let i = 0; i < svgs.length; i++) {
+      if (i) pdf.addPage("a4", "portrait");
+      await pdf.svg(svgs[i], { x: 0, y: 0, width: 210, height: 297 });
+    }
+    const title = (o.Sheet && o.Sheet.TitleString) || baseName();
+    pdf.setProperties({ title: title, creator: "Pentagramma a colori" });
+    const name = baseName() + "-colorato.pdf";
+    downloadBlob(pdf.output("blob"), name);
+    toast("PDF scaricato: " + name + " (" + svgs.length + (svgs.length === 1 ? " pagina)" : " pagine)"));
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "Non riesco a creare il PDF.", true);
+  } finally {
+    host.remove();
+    pdfBusy = false;
+    $("pdfBtn").disabled = false;
+    $("pdfLabel").textContent = "Scarica PDF";
+  }
 }
 
 /* ---------- Anteprima (OpenSheetMusicDisplay) ---------- */
@@ -666,17 +739,28 @@ let osmd = null;
 function ensureOsmd() {
   if (osmd) return osmd;
   if (!window.opensheetmusicdisplay) throw new Error("La libreria per disegnare lo spartito non si è caricata. Controlla la connessione a internet e ricarica la pagina.");
-  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay($("osmd"), {
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay($("osmd"), osmdOptions("Endless"));
+  return osmd;
+}
+
+function osmdOptions(pageFormat) {
+  return {
     autoResize: false,
     backend: "svg",
     drawTitle: true,
     drawComposer: true,
     drawPartNames: true,
     coloringEnabled: true,
-    pageFormat: "Endless",
+    pageFormat: pageFormat,
     drawingParameters: "default"
-  });
-  return osmd;
+  };
+}
+
+// Margini del foglio: circa 15 mm ai lati e 10 mm sopra e sotto (1 unità = 1/4 dell'altezza del pentagramma).
+function setMargins(rules) {
+  rules.PageLeftMargin = rules.PageRightMargin = 60 / S.mm;
+  rules.PageTopMargin = 40 / S.mm;
+  rules.PageBottomMargin = 40 / S.mm;
 }
 
 function pxPerMm() {
@@ -698,8 +782,11 @@ async function renderScore(reload) {
       child(notes[i], "notehead")?.removeAttribute("color");
       child(notes[i], "stem")?.removeAttribute("color");
     }
-    await o.load(serialize(clone));
-    mapNotes();
+    S.renderXml = serialize(clone);
+    await o.load(S.renderXml);
+    const m = mapNotes(o);
+    S.osmdNotes = m.notes;
+    S.voiceEntries = m.ves;
   }
   if (rendering) { renderAgain = true; return; }
   rendering = true;
@@ -714,34 +801,34 @@ async function renderScore(reload) {
   }
 }
 
-function mapNotes() {
-  S.osmdNotes = [];
-  S.voiceEntries = [];
+function mapNotes(o) {
+  const notes = [], ves = [];
   const seenVe = new Set();
-  for (const m of osmd.Sheet.SourceMeasures) {
+  for (const m of o.Sheet.SourceMeasures) {
     for (const c of m.VerticalSourceStaffEntryContainers) {
       for (const se of c.StaffEntries) {
         if (!se) continue;
         for (const ve of se.VoiceEntries) {
-          if (!seenVe.has(ve)) { seenVe.add(ve); S.voiceEntries.push(ve); }
+          if (!seenVe.has(ve)) { seenVe.add(ve); ves.push(ve); }
           for (const n of ve.Notes) {
             const m2 = /^xi(\d+)$/.exec(n.NoteheadColorXml || "");
             n.__xi = m2 ? parseInt(m2[1], 10) : null;
-            S.osmdNotes.push(n);
+            notes.push(n);
           }
         }
       }
     }
   }
+  return { notes, ves };
 }
 
-function applyColorsToOsmd() {
-  for (const n of S.osmdNotes) {
+function applyColors(notes, ves) {
+  for (const n of notes) {
     const c = n.__xi != null ? (S.colors[n.__xi] || undefined) : undefined;
     n.NoteheadColor = c;
     n.NoteheadColorXml = c;
   }
-  for (const ve of S.voiceEntries) {
+  for (const ve of ves) {
     const cs = ve.Notes.map((n) => (n.__xi != null ? S.colors[n.__xi] : null));
     const same = cs.length && cs.every((c) => c === cs[0]) ? cs[0] : null;
     ve.StemColor = same || undefined;
@@ -756,11 +843,8 @@ function draw() {
   paper.style.width = Math.round(210 * ppm) + "px";
   // OSMD: 1 unità = 10 px a zoom 1, il pentagramma è alto 4 unità (40 px).
   o.Zoom = (S.mm * ppm) / 40;
-  const rules = o.EngravingRules;
-  rules.PageLeftMargin = rules.PageRightMargin = 60 / S.mm;  // circa 15 mm
-  rules.PageTopMargin = 40 / S.mm;                           // circa 10 mm
-  rules.PageBottomMargin = 40 / S.mm;
-  applyColorsToOsmd();
+  setMargins(o.EngravingRules);
+  applyColors(S.osmdNotes, S.voiceEntries);
   const sc = $("scroll"), keepTop = sc.scrollTop;
   o.render();
   sc.scrollTop = keepTop;
@@ -1019,6 +1103,7 @@ function sampleXml() {
 $("openBtn").onclick = () => $("fileInput").click();
 $("fileInput").addEventListener("change", (e) => { openFile(e.target.files[0]); e.target.value = ""; });
 $("saveBtn").onclick = saveFile;
+$("pdfBtn").onclick = exportPdf;
 $("undoBtn").onclick = undo;
 
 $("sizeRange").addEventListener("input", (e) => setMm(parseFloat(e.target.value)));
